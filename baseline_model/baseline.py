@@ -4,7 +4,7 @@ import torch.nn as nn
 import torchvision.models as models
 
 #pretrained model - import, extract features, freeze weights (for transfer learning)
-vgg16 = models.vgg16(pretrained=True)
+vgg16 = models.vgg16(weights=models.VGG16_Weights.IMAGENET1K_V1)  # Updated from deprecated pretrained=True
 encoder = vgg16.features 
 for param in encoder.parameters():
     param.requires_grad = False
@@ -48,10 +48,8 @@ def train_model(train_loader, val_loader, num_epochs):
     torch.manual_seed(42)
     
     #device
-    if torch.cuda.is_available():
-        device = torch.device("cuda")
-    else:
-        device = torch.device("cpu")
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    print(f"Using device: {device}")
 
     #model instance
     decoder = Decoder()
@@ -68,25 +66,31 @@ def train_model(train_loader, val_loader, num_epochs):
         #training mode for BatchNorm from VGG16
         model.train()
         train_loss = 0
+        num_batches = 0
 
         for images, depths in train_loader:
             images = images.to(device)
             depths = depths.to(device)
+            
+            # Zero gradients before forward pass
+            optimizer.zero_grad()
             
             outputs = model(images)
             loss = criterion(outputs, depths)
             
             loss.backward()
             optimizer.step()
-            optimizer.zero_grad()
 
             train_loss += loss.item()
+            num_batches += 1
 
-        avg_train_loss = train_loss / len(train_loader)
+
+        avg_train_loss = train_loss / num_batches if num_batches > 0 else 0
 
         #eval mode for validation
         model.eval()
         val_loss = 0
+        num_val_batches = 0
 
         with torch.no_grad():
             for images, depths in val_loader:
@@ -97,11 +101,14 @@ def train_model(train_loader, val_loader, num_epochs):
                 loss = criterion(outputs, depths)
 
                 val_loss += loss.item()
+                num_val_batches += 1
 
-        avg_val_loss = val_loss / len(val_loader)
+        avg_val_loss = val_loss / num_val_batches if num_val_batches > 0 else 0
 
         print(f"Epoch [{epoch+1}/{num_epochs}], Train Loss: {avg_train_loss:.4f}, Val Loss: {avg_val_loss:.4f}")
     
-        outputLog.append((epoch, images, avg_val_loss, outputs))
+        outputLog.append((epoch, images.cpu(), avg_val_loss, outputs.cpu()))
+    
+    return outputLog, model  # Return both training log and the trained model
 
 
