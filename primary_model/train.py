@@ -38,7 +38,6 @@ parser.add_argument('--save-path', type=str, required=True)
 parser.add_argument('--local-rank', default=0, type=int)
 parser.add_argument('--port', default=None, type=int)
 
-
 def main():
     args = parser.parse_args()
     
